@@ -334,10 +334,18 @@ function initGraph() {
           color: "#b45309"
         }
       },
-      {
-        selector: ".dimmed",
+     {
+        selector: "node.dimmed",
         style: {
-          opacity: 0.22
+          "background-color": "#7c9a8e",
+          color: "#ffffff",
+          opacity: 0.88
+        }
+      },
+      {
+        selector: "edge.dimmed",
+        style: {
+          opacity: 0.28
         }
       },
       {
