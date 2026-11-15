@@ -70,16 +70,16 @@ function initGraph() {
           "text-halign": "center",
           color: "#ffffff",
           "text-wrap": "wrap",
-          "text-max-width": "85px"
+          "text-max-width": "54px"
         }
       },
       {
         selector: 'node[type="concept"]',
         style: {
           "background-color": "#c59b27",
-          width: 78,
-          height: 78,
-          "font-size": "20px"
+          width: 72,
+          height: 72,
+          "font-size": "18px"
         }
       },
       {
@@ -88,16 +88,16 @@ function initGraph() {
           "background-color": "#1b4d3e",
           width: "data(size)",
           height: "data(size)",
-          "font-size": "14px"
+          "font-size": "11px"
         }
       },
       {
         selector: 'node[type="verse"]',
         style: {
           "background-color": "#2b6cb0",
-          width: 48,
-          height: 48,
-          "font-size": "13px"
+          width: 44,
+          height: 44,
+          "font-size": "10.5px"
         }
       },
       {
@@ -326,7 +326,7 @@ function runSearch(rawQuery) {
         label: `${surahName}\n(${count})`,
         type: "surah",
         surahId: sId,
-        size: Math.min(68, 44 + count * 1.8)
+        size: Math.min(72, 52 + count * 1.4)
       }
     });
     elements.push({
@@ -367,7 +367,6 @@ function expandSurahNode(surahId) {
   const surahNode = cy.getElementById(`s_${surahId}`);
   const basePos = surahNode.position();
 
-  // Place verse nodes in a tight local arc around the clicked Surah node
   const newNodes = [];
   const radius = 85;
   occs.forEach((occ, idx) => {
@@ -399,7 +398,6 @@ function expandSurahNode(surahId) {
   });
 
   cy.add(newNodes);
-  // Smoothly pan/zoom to focus on the expanded Surah and its verses
   const focusGroup = surahNode.union(cy.nodes('[type="verse"]'));
   cy.animate({
     fit: { eles: focusGroup, padding: 80 },
