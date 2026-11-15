@@ -34,43 +34,59 @@
     </div>
   </header>
 
-  <section class="filter-bar">
-    <div class="filter-group">
-      <label for="morphFilter">الوسم الصرفي (Morph_Tag):</label>
-      <select id="morphFilter">
-        <option value="ALL">الكل (All Tags)</option>
-      </select>
-    </div>
-
-    <div class="filter-group">
-      <label for="phrasalFilter">الوظيفة التركيبية (Phrasal_Function):</label>
-      <select id="phrasalFilter">
-        <option value="ALL">الكل (All Functions)</option>
-      </select>
-    </div>
-
-    <div class="filter-group">
-      <label class="toggle-label">
-        <input type="checkbox" id="cooccurToggle" checked />
-        <span>إظهار روابط الترابط الدلالي بين السور (Co-occurrence Edges)</span>
-      </label>
-    </div>
-
-    <button id="resetFiltersBtn" class="secondary-btn">إعادة ضبط المرشحات</button>
-  </section>
-
   <main class="workspace">
+    <!-- Right Column: Vertical Filter Controls + Matched Surahs Column List -->
+    <aside class="sidebar-right">
+      <div class="panel-section">
+        <h3>تصفية النتائج (Filters)</h3>
+        <div class="filter-column">
+          <div class="filter-item">
+            <label for="morphFilter">الوسم الصرفي (Morph_Tag):</label>
+            <select id="morphFilter">
+              <option value="ALL">الكل (All Tags)</option>
+            </select>
+          </div>
+
+          <div class="filter-item">
+            <label for="phrasalFilter">الوظيفة التركيبية (Phrasal_Function):</label>
+            <select id="phrasalFilter">
+              <option value="ALL">الكل (All Functions)</option>
+            </select>
+          </div>
+
+          <label class="toggle-label">
+            <input type="checkbox" id="cooccurToggle" />
+            <span>إظهار روابط التقارب المعجمي (أقوى 3 روابط للسورة)</span>
+          </label>
+
+          <button id="resetFiltersBtn" class="secondary-btn">إعادة ضبط المرشحات</button>
+        </div>
+      </div>
+
+      <hr class="divider" />
+
+      <div class="panel-section surah-list-section">
+        <div class="list-header">
+          <h3>قائمة السور المطابقة</h3>
+          <span id="surahCountBadge" class="count-pill">0</span>
+        </div>
+        <div id="surahColumnList" class="surah-column-list"></div>
+      </div>
+    </aside>
+
+    <!-- Center Column: Clean Radial Graph -->
     <section class="graph-container">
       <div id="cy"></div>
       <div class="graph-legend">
         <span><i class="dot concept"></i> الجذر / المعنى</span>
         <span><i class="dot surah"></i> السورة</span>
         <span><i class="dot verse"></i> الآية</span>
-        <span><i class="line cooccur"></i> تقارب معجمي بين السور</span>
+        <span><i class="line cooccur"></i> تقارب معجمي</span>
       </div>
       <div id="statusOverlay" class="status-overlay">جاري تحميل بيانات MASAQ...</div>
     </section>
 
+    <!-- Left Column: Corpus Statistics + Verse Context Inspector -->
     <aside class="inspector" id="inspector">
       <div class="stats-panel" id="corpusStatsPanel">
         <h3>التوزيع الصرفي والنحوي في المدونة</h3>
@@ -79,8 +95,8 @@
 
       <hr class="divider" />
 
-      <h2>تفاصيل الآية والسياق</h2>
-      <p class="hint" id="inspectorHint">انقر على أي <strong>سورة</strong> لعرض آياتها، أو انقر على <strong>آية</strong> لقراءة السياق القرآني والتحليل الصرفي والنحوي الكامل.</p>
+      <h2>تفاصيل الآيات والسياق</h2>
+      <p class="hint" id="inspectorHint">اختر <strong>سورة</strong> من القائمة اليمنى أو من الشبكة لعرض جميع آياتها وسياقها.</p>
       <div id="inspectorContent"></div>
     </aside>
   </main>

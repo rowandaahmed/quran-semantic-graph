@@ -28,7 +28,6 @@ async function init() {
   }
 }
 
-
 function populateFilterDropdowns() {
   const morphSelect = document.getElementById("morphFilter");
   const phrasalSelect = document.getElementById("phrasalFilter");
@@ -63,17 +62,17 @@ function initGraph() {
           "text-valign": "center",
           "text-halign": "center",
           color: "#fff",
-          "font-size": "13px",
+          "font-size": "12px",
           "text-wrap": "wrap",
-          "text-max-width": "90px"
+          "text-max-width": "85px"
         }
       },
       {
         selector: 'node[type="concept"]',
         style: {
           "background-color": "#c59b27",
-          width: 74,
-          height: 74,
+          width: 72,
+          height: 72,
           "font-size": "16px",
           "font-weight": "bold"
         }
@@ -90,30 +89,30 @@ function initGraph() {
         selector: 'node[type="verse"]',
         style: {
           "background-color": "#2b6cb0",
-          width: 46,
-          height: 46,
+          width: 44,
+          height: 44,
           "font-size": "11px"
         }
       },
       {
         selector: 'edge[edgeType="hierarchy"]',
         style: {
-          width: 2,
+          width: 1.5,
           "line-color": "#cbd5e1",
-          "curve-style": "bezier",
+          "curve-style": "straight",
           label: "data(label)",
           "font-size": "10px",
-          color: "#475569"
+          color: "#64748b"
         }
       },
       {
         selector: 'edge[edgeType="cooccur"]',
         style: {
-          width: "data(weight)",
+          width: 1.8,
           "line-color": "#d97706",
           "line-style": "dashed",
-          "curve-style": "unbundled-bezier",
-          opacity: 0.65,
+          "curve-style": "bezier",
+          opacity: 0.45,
           label: "data(label)",
           "font-size": "9px",
           color: "#b45309"
@@ -133,40 +132,53 @@ function initGraph() {
   });
 }
 
+// Clean co-occurrence: keep only top 2 strongest links per Surah (>= 0.24 Jaccard) to avoid clutter
 function computeSurahCooccurrenceEdges(surahIds) {
   if (!quranData.surah_signatures || surahIds.length < 2) return [];
   const edges = [];
-  // Compare top signature stems across matched Surahs (limit to top 25 Surahs for clarity)
-  const targetSurahs = surahIds.slice(0, 25);
+  const addedPairs = new Set();
+  const targetSurahs = surahIds.slice(0, 18);
 
-  for (let i = 0; i < targetSurahs.length; i++) {
-    for (let j = i + 1; j < targetSurahs.length; j++) {
-      const sA = targetSurahs[i];
-      const sB = targetSurahs[j];
-      const sigA = new Set(quranData.surah_signatures[String(sA)] || []);
+  targetSurahs.forEach((sA) => {
+    const sigA = new Set(quranData.surah_signatures[String(sA)] || []);
+    if (!sigA.size) return;
+
+    const candidates = [];
+    targetSurahs.forEach((sB) => {
+      if (sA === sB) return;
       const sigB = new Set(quranData.surah_signatures[String(sB)] || []);
-      if (sigA.size === 0 || sigB.size === 0) continue;
+      if (!sigB.size) return;
 
       let shared = 0;
       sigA.forEach((w) => {
         if (sigB.has(w)) shared++;
       });
-
       const jaccard = shared / (sigA.size + sigB.size - shared);
-      if (jaccard >= 0.16) {
-        edges.push({
-          data: {
-            id: `co_${sA}_${sB}`,
-            source: `s_${sA}`,
-            target: `s_${sB}`,
-            edgeType: "cooccur",
-            weight: Math.min(4, Math.max(1.5, jaccard * 12)),
-            label: `${Math.round(jaccard * 100)}%`
-          }
-        });
+      if (jaccard >= 0.24) {
+        candidates.push({ sB, jaccard });
       }
-    }
-  }
+    });
+
+    candidates
+      .sort((a, b) => b.jaccard - a.jaccard)
+      .slice(0, 2)
+      .forEach(({ sB, jaccard }) => {
+        const pairKey = sA < sB ? `${sA}_${sB}` : `${sB}_${sA}`;
+        if (!addedPairs.has(pairKey)) {
+          addedPairs.add(pairKey);
+          edges.push({
+            data: {
+              id: `co_${pairKey}`,
+              source: `s_${sA}`,
+              target: `s_${sB}`,
+              edgeType: "cooccur",
+              label: `${Math.round(jaccard * 100)}%`
+            }
+          });
+        }
+      });
+  });
+
   return edges;
 }
 
@@ -185,7 +197,7 @@ function updateCorpusStats(occs) {
   occs.forEach((o) => {
     if (o.tag) {
       tagCounts[o.tag] = (tagCounts[o.tag] || 0) + 1;
-      if (o.tag.startsWith("NOUN")) nounCount++;
+      if (o.tag.startsWith("NOUN") || o.tag === "GERUND") nounCount++;
       if (o.tag.startsWith("VERB")) verbCount++;
     }
     if (o.pfn) {
@@ -216,6 +228,43 @@ function updateCorpusStats(occs) {
       <div class="stat-val">${occs.length} موضع</div>
     </div>
   `;
+}
+
+function renderSurahColumnList(surahIds) {
+  const listEl = document.getElementById("surahColumnList");
+  const badgeEl = document.getElementById("surahCountBadge");
+  badgeEl.textContent = surahIds.length;
+  listEl.innerHTML = "";
+
+  surahIds.forEach((sId) => {
+    const count = currentMatchesBySurah[sId].length;
+    const surahName = quranData.surahs[sId] || `سورة ${sId}`;
+    const btn = document.createElement("button");
+    btn.className = "surah-row-btn";
+    btn.dataset.surahId = sId;
+    btn.innerHTML = `
+      <span>${sId}. سورة ${surahName}</span>
+      <span class="surah-row-badge">${count}</span>
+    `;
+    btn.addEventListener("click", () => expandSurahNode(sId));
+    listEl.appendChild(btn);
+  });
+}
+
+function applyConcentricLayout() {
+  cy.layout({
+    name: "concentric",
+    animate: true,
+    animationDuration: 350,
+    minNodeSpacing: 32,
+    concentric: (node) => {
+      const t = node.data("type");
+      if (t === "concept") return 3;
+      if (t === "surah") return 2;
+      return 1;
+    },
+    levelWidth: () => 1
+  }).run();
 }
 
 function runSearch(rawQuery) {
@@ -253,6 +302,8 @@ function runSearch(rawQuery) {
     .map(Number)
     .sort((a, b) => currentMatchesBySurah[b].length - currentMatchesBySurah[a].length);
 
+  renderSurahColumnList(surahIds);
+
   document.getElementById("statusOverlay").textContent =
     `نتائج "${rawQuery}": ${matchedOccs.length} موضع في ${surahIds.length} سورة`;
 
@@ -269,7 +320,7 @@ function runSearch(rawQuery) {
         label: `${surahName}\n(${count})`,
         type: "surah",
         surahId: sId,
-        size: Math.min(64, 38 + count * 2)
+        size: Math.min(60, 38 + count * 1.6)
       }
     });
     elements.push({
@@ -289,12 +340,17 @@ function runSearch(rawQuery) {
 
   cy.elements().remove();
   cy.add(elements);
-  cy.layout({ name: "cose", animate: true, nodeRepulsion: 9000 }).run();
+  applyConcentricLayout();
 }
 
 function expandSurahNode(surahId) {
   const occs = currentMatchesBySurah[surahId] || [];
   cy.nodes('[type="verse"]').remove();
+
+  // Highlight active Surah button in right column
+  document.querySelectorAll(".surah-row-btn").forEach((b) => {
+    b.classList.toggle("active", Number(b.dataset.surahId) === surahId);
+  });
 
   const newNodes = [];
   occs.forEach((occ, idx) => {
@@ -321,7 +377,7 @@ function expandSurahNode(surahId) {
   });
 
   cy.add(newNodes);
-  cy.layout({ name: "cose", animate: true, nodeRepulsion: 6500 }).run();
+  applyConcentricLayout();
 
   if (occs.length > 0) {
     showVerseContext(surahId, occs[0].v, occs[0]);
@@ -391,7 +447,7 @@ document.getElementById("cooccurToggle").addEventListener("change", () => runSea
 document.getElementById("resetFiltersBtn").addEventListener("click", () => {
   document.getElementById("morphFilter").value = "ALL";
   document.getElementById("phrasalFilter").value = "ALL";
-  document.getElementById("cooccurToggle").checked = true;
+  document.getElementById("cooccurToggle").checked = false;
   runSearch(lastQuery);
 });
 
