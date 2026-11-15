@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>مستكشف الدلالات القرآنية | MASAQ Semantic Graph</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <h1>مستكشف المعاني والجذور القرآنية</h1>
+      <span class="badge">MASAQ Graph Explorer</span>
+    </div>
+    <div class="search-box">
+      <input
+        type="text"
+        id="searchInput"
+        placeholder="ابحث عن معنى أو جذر (مثال: رحم، علم، صبر، نور، قلب)..."
+        autocomplete="off"
+      />
+      <button id="searchBtn">استكشاف</button>
+    </div>
+    <div class="quick-tags">
+      <span>أمثلة سريعة:</span>
+      <button class="chip" data-q="رحم">رحم</button>
+      <button class="chip" data-q="علم">علم</button>
+      <button class="chip" data-q="صبر">صبر</button>
+      <button class="chip" data-q="نور">نور</button>
+      <button class="chip" data-q="حق">حق</button>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <section class="graph-container">
+      <div id="cy"></div>
+      <div class="graph-legend">
+        <span><i class="dot concept"></i> المعنى / الجذر</span>
+        <span><i class="dot surah"></i> السورة (انقر للتوسيع)</span>
+        <span><i class="dot verse"></i> الآية (انقر للسياق)</span>
+      </div>
+      <div id="statusOverlay" class="status-overlay">جاري تحميل بيانات MASAQ...</div>
+    </section>
+
+    <aside class="inspector" id="inspector">
+      <h2>تفاصيل الآية والسياق</h2>
+      <p class="hint">ابحث عن كلمة ثم انقر على أي <strong>سورة</strong> لعرض آياتها، أو انقر على <strong>آية</strong> لقراءة السياق القرآني والتحليل الصرفي.</p>
+      <div id="inspectorContent"></div>
+    </aside>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
