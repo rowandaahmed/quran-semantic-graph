@@ -2,7 +2,7 @@ import csv
 import json
 import re
 import os
-from collections import defaultdict
+from collections import defaultdict, Counter
 
 os.makedirs("data", exist_ok=True)
 
@@ -40,9 +40,12 @@ SURAH_NAMES = {
 
 verses_words = defaultdict(dict)
 stem_index = defaultdict(list)
+surah_top_stems = defaultdict(Counter)
+all_morph_tags = Counter()
+all_phrasal_funcs = Counter()
 skipped_rows = 0
 
-print("Processing raw_data/MASAQ.csv...")
+print("Processing raw_data/MASAQ.csv with morpho-syntactic & phrasal metadata...")
 with open("raw_data/MASAQ.csv", mode="r", encoding="utf-8-sig", newline="") as f:
     reader = csv.DictReader(f)
     for row in reader:
@@ -64,40 +67,68 @@ with open("raw_data/MASAQ.csv", mode="r", encoding="utf-8-sig", newline="") as f
         if row.get("Morph_Type") == "Stem":
             raw_stem = (row.get("Segmented_Word") or "").strip()
             norm_stem = strip_diacritics(raw_stem)
+            morph_tag = (row.get("Morph_Tag") or "").strip()
+            phrasal_fn = (row.get("Phrasal_Function") or "").strip()
+            syntactic_role = (row.get("Syntactic_Role") or "").strip()
+            possessive = (row.get("Possessive_Construct") or "").strip()
+            case_mood = (row.get("Case_Mood") or "").strip()
+
             if len(norm_stem) >= 2:
+                if morph_tag:
+                    all_morph_tags[morph_tag] += 1
+                if phrasal_fn:
+                    all_phrasal_funcs[phrasal_fn] += 1
+
+                # Track distinctive lexical stems per Surah for co-occurrence edges
+                if len(norm_stem) >= 3 and morph_tag.startswith(("NOUN", "VERB", "ADJ")):
+                    surah_top_stems[sura][norm_stem] += 1
+
                 stem_index[norm_stem].append({
                     "s": sura,
                     "v": verse,
                     "w": word_text,
                     "stem": raw_stem,
-                    "tag": row.get("Morph_Tag") or "",
-                    "role": row.get("Syntactic_Role") or ""
+                    "tag": morph_tag,
+                    "role": syntactic_role,
+                    "pfn": phrasal_fn,
+                    "pos": possessive,
+                    "cm": case_mood
                 })
 
 verses_text = {}
 for (sura, verse), w_map in verses_words.items():
-    full_text = " ".join(w_map[k] for k in sorted(w_map.keys()))
-    verses_text[f"{sura}:{verse}"] = full_text
+    verses_text[f"{sura}:{verse}"] = " ".join(w_map[k] for k in sorted(w_map.keys()))
 
 clean_stems = {}
 for norm_stem, occs in stem_index.items():
     seen = set()
     unique_occs = []
     for o in occs:
-        key = (o["s"], o["v"], o["w"])
+        key = (o["s"], o["v"], o["w"], o["tag"])
         if key not in seen:
             seen.add(key)
             unique_occs.append(o)
     clean_stems[norm_stem] = unique_occs
 
+# Store top 40 signature lexical stems per Surah for fast in-browser co-occurrence similarity
+surah_signatures = {
+    str(s): [stem for stem, _ in counter.most_common(40)]
+    for s, counter in surah_top_stems.items()
+}
+
 output = {
     "surahs": SURAH_NAMES,
     "verses": verses_text,
-    "stems": clean_stems
+    "stems": clean_stems,
+    "surah_signatures": surah_signatures,
+    "meta": {
+        "morph_tags": [t for t, _ in all_morph_tags.most_common(30)],
+        "phrasal_functions": [p for p, _ in all_phrasal_funcs.most_common(25)]
+    }
 }
 
 out_path = "data/quran_index.json"
 with open(out_path, "w", encoding="utf-8") as out_f:
     json.dump(output, out_f, ensure_ascii=False, separators=(",", ":"))
 
-print(f"Done! Indexed {len(clean_stems)} unique Arabic stems across {len(verses_text)} verses -> {out_path} (Skipped {skipped_rows} malformed rows)")
+print(f"Done! Indexed {len(clean_stems)} stems, {len(all_morph_tags)} morph tags, {len(all_phrasal_funcs)} phrasal functions -> {out_path}")

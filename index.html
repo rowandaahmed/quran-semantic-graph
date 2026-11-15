@@ -3,27 +3,29 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>مستكشف الدلالات القرآنية | MASAQ Semantic Graph</title>
+  <title>مستكشف الدلالات والأنماط الصرفية القرآنية | MASAQ Semantic Graph</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
 </head>
 <body>
   <header class="topbar">
     <div class="brand">
-      <h1>مستكشف المعاني والجذور القرآنية</h1>
-      <span class="badge">MASAQ Graph Explorer</span>
+      <h1>مستكشف المعاني والأنماط الصرفية</h1>
+      <span class="badge">MASAQ Corpus Graph</span>
     </div>
+
     <div class="search-box">
       <input
         type="text"
         id="searchInput"
-        placeholder="ابحث عن معنى أو جذر (مثال: رحم، علم، صبر، نور، قلب)..."
+        placeholder="ابحث عن جذر أو معنى (مثال: رحم، علم، صبر، نور، قلب)..."
         autocomplete="off"
       />
       <button id="searchBtn">استكشاف</button>
     </div>
+
     <div class="quick-tags">
-      <span>أمثلة سريعة:</span>
+      <span>أمثلة:</span>
       <button class="chip" data-q="رحم">رحم</button>
       <button class="chip" data-q="علم">علم</button>
       <button class="chip" data-q="صبر">صبر</button>
@@ -32,20 +34,53 @@
     </div>
   </header>
 
+  <section class="filter-bar">
+    <div class="filter-group">
+      <label for="morphFilter">الوسم الصرفي (Morph_Tag):</label>
+      <select id="morphFilter">
+        <option value="ALL">الكل (All Tags)</option>
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label for="phrasalFilter">الوظيفة التركيبية (Phrasal_Function):</label>
+      <select id="phrasalFilter">
+        <option value="ALL">الكل (All Functions)</option>
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label class="toggle-label">
+        <input type="checkbox" id="cooccurToggle" checked />
+        <span>إظهار روابط الترابط الدلالي بين السور (Co-occurrence Edges)</span>
+      </label>
+    </div>
+
+    <button id="resetFiltersBtn" class="secondary-btn">إعادة ضبط المرشحات</button>
+  </section>
+
   <main class="workspace">
     <section class="graph-container">
       <div id="cy"></div>
       <div class="graph-legend">
-        <span><i class="dot concept"></i> المعنى / الجذر</span>
-        <span><i class="dot surah"></i> السورة (انقر للتوسيع)</span>
-        <span><i class="dot verse"></i> الآية (انقر للسياق)</span>
+        <span><i class="dot concept"></i> الجذر / المعنى</span>
+        <span><i class="dot surah"></i> السورة</span>
+        <span><i class="dot verse"></i> الآية</span>
+        <span><i class="line cooccur"></i> تقارب معجمي بين السور</span>
       </div>
       <div id="statusOverlay" class="status-overlay">جاري تحميل بيانات MASAQ...</div>
     </section>
 
     <aside class="inspector" id="inspector">
+      <div class="stats-panel" id="corpusStatsPanel">
+        <h3>التوزيع الصرفي والنحوي في المدونة</h3>
+        <div id="corpusStatsContent" class="stats-grid"></div>
+      </div>
+
+      <hr class="divider" />
+
       <h2>تفاصيل الآية والسياق</h2>
-      <p class="hint">ابحث عن كلمة ثم انقر على أي <strong>سورة</strong> لعرض آياتها، أو انقر على <strong>آية</strong> لقراءة السياق القرآني والتحليل الصرفي.</p>
+      <p class="hint" id="inspectorHint">انقر على أي <strong>سورة</strong> لعرض آياتها، أو انقر على <strong>آية</strong> لقراءة السياق القرآني والتحليل الصرفي والنحوي الكامل.</p>
       <div id="inspectorContent"></div>
     </aside>
   </main>
