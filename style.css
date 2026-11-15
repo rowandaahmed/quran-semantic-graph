@@ -75,18 +75,19 @@ body {
 .workspace {
   flex: 1;
   display: grid;
-  grid-template-columns: 280px 1fr 390px;
+  grid-template-columns: 220px 1fr 300px;
   overflow: hidden;
 }
 
 .sidebar-right {
   background: var(--surface);
   border-left: 1px solid var(--border);
-  padding: 16px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
 }
+
 
 .filter-column {
   display: flex;

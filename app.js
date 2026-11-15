@@ -51,10 +51,11 @@ function populateFilterDropdowns() {
   }
 }
 
+
 function initGraph() {
   cy = cytoscape({
     container: document.getElementById("cy"),
-    minZoom: 0.4,
+    minZoom: 0.5,
     maxZoom: 3,
     style: [
       {
@@ -64,7 +65,7 @@ function initGraph() {
           "font-family": "Amiri, Segoe UI, Tahoma, sans-serif",
           "font-weight": "bold",
           "text-wrap": "wrap",
-          "text-max-width": "120px"
+          "text-max-width": "130px"
         }
       },
       {
@@ -73,12 +74,12 @@ function initGraph() {
           "background-color": "#c59b27",
           "border-width": 4,
           "border-color": "#fef08a",
-          width: 110,
-          height: 110,
+          width: 100,
+          height: 100,
           "text-valign": "center",
           "text-halign": "center",
           color: "#ffffff",
-          "font-size": "24px"
+          "font-size": "26px"
         }
       },
       {
@@ -89,11 +90,11 @@ function initGraph() {
           "border-color": "#ffffff",
           shape: "round-rectangle",
           width: "data(width)",
-          height: 44,
+          height: 46,
           "text-valign": "center",
           "text-halign": "center",
           color: "#ffffff",
-          "font-size": "16px",
+          "font-size": "18px",
           padding: "8px"
         }
       },
@@ -104,12 +105,12 @@ function initGraph() {
           "border-width": 2,
           "border-color": "#dbeafe",
           shape: "round-rectangle",
-          width: 78,
-          height: 36,
+          width: 84,
+          height: 38,
           "text-valign": "center",
           "text-halign": "center",
           color: "#ffffff",
-          "font-size": "15px"
+          "font-size": "16px"
         }
       },
       {
@@ -120,11 +121,7 @@ function initGraph() {
           "curve-style": "straight",
           label: "data(label)",
           "font-size": "13px",
-          "font-weight": "bold",
-          color: "#334155",
-          "text-background-color": "#faf9f5",
-          "text-background-opacity": 0.85,
-          "text-background-padding": "2px"
+          color: "#334155"
         }
       },
       {
@@ -153,7 +150,6 @@ function initGraph() {
     }
   });
 }
-
 
 // Clean co-occurrence: keep only top 2 strongest links per Surah (>= 0.24 Jaccard) to avoid clutter
 function computeSurahCooccurrenceEdges(surahIds) {
@@ -278,20 +274,28 @@ function applyConcentricLayout() {
   cy.layout({
     name: "concentric",
     animate: true,
-    animationDuration: 350,
+    animationDuration: 300,
     fit: true,
-    padding: 25,
+    padding: 12,
     avoidOverlap: true,
-    minNodeSpacing: 16,
+    minNodeSpacing: 8,
+    equidistant: false,
     concentric: (node) => {
       const t = node.data("type");
-      if (t === "concept") return 3;
-      if (t === "surah") return 2;
-      return 1;
+      if (t === "concept") return 10;
+      if (t === "surah") {
+        // Pack Surahs into 2 tight inner rings based on frequency
+        const label = node.data("label") || "";
+        const match = label.match(/\((\d+)\)/);
+        const count = match ? parseInt(match[1], 10) : 1;
+        return count >= 5 ? 6 : 4;
+      }
+      return 2; // verse nodes on outer ring
     },
-    levelWidth: () => 1
+    levelWidth: () => 2
   }).run();
 }
+
 
 function runSearch(rawQuery) {
   if (!quranData) return;
