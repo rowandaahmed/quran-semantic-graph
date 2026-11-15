@@ -51,12 +51,14 @@ function populateFilterDropdowns() {
   }
 }
 
-
 function initGraph() {
   cy = cytoscape({
     container: document.getElementById("cy"),
-    minZoom: 0.5,
-    maxZoom: 3,
+    minZoom: 0.15,
+    maxZoom: 4,
+    wheelSensitivity: 0.25,
+    userZoomingEnabled: true,
+    userPanningEnabled: true,
     style: [
       {
         selector: "node",
@@ -64,76 +66,61 @@ function initGraph() {
           label: "data(label)",
           "font-family": "Amiri, Segoe UI, Tahoma, sans-serif",
           "font-weight": "bold",
+          "text-valign": "center",
+          "text-halign": "center",
+          color: "#ffffff",
           "text-wrap": "wrap",
-          "text-max-width": "130px"
+          "text-max-width": "85px"
         }
       },
       {
         selector: 'node[type="concept"]',
         style: {
           "background-color": "#c59b27",
-          "border-width": 4,
-          "border-color": "#fef08a",
-          width: 100,
-          height: 100,
-          "text-valign": "center",
-          "text-halign": "center",
-          color: "#ffffff",
-          "font-size": "26px"
+          width: 78,
+          height: 78,
+          "font-size": "20px"
         }
       },
       {
         selector: 'node[type="surah"]',
         style: {
           "background-color": "#1b4d3e",
-          "border-width": 2,
-          "border-color": "#ffffff",
-          shape: "round-rectangle",
-          width: "data(width)",
-          height: 46,
-          "text-valign": "center",
-          "text-halign": "center",
-          color: "#ffffff",
-          "font-size": "18px",
-          padding: "8px"
+          width: "data(size)",
+          height: "data(size)",
+          "font-size": "14px"
         }
       },
       {
         selector: 'node[type="verse"]',
         style: {
           "background-color": "#2b6cb0",
-          "border-width": 2,
-          "border-color": "#dbeafe",
-          shape: "round-rectangle",
-          width: 84,
-          height: 38,
-          "text-valign": "center",
-          "text-halign": "center",
-          color: "#ffffff",
-          "font-size": "16px"
+          width: 48,
+          height: 48,
+          "font-size": "13px"
         }
       },
       {
         selector: 'edge[edgeType="hierarchy"]',
         style: {
-          width: 1.5,
-          "line-color": "#cbd5e1",
-          "curve-style": "straight",
+          width: 1.8,
+          "line-color": "#94a3b8",
+          "curve-style": "bezier",
           label: "data(label)",
-          "font-size": "13px",
+          "font-size": "11px",
           color: "#334155"
         }
       },
       {
         selector: 'edge[edgeType="cooccur"]',
         style: {
-          width: 2,
+          width: 1.5,
           "line-color": "#d97706",
           "line-style": "dashed",
           "curve-style": "bezier",
-          opacity: 0.5,
+          opacity: 0.45,
           label: "data(label)",
-          "font-size": "12px",
+          "font-size": "10px",
           color: "#b45309"
         }
       }
@@ -149,9 +136,25 @@ function initGraph() {
       showVerseContext(node.data("surahId"), node.data("verseId"), node.data("occ"));
     }
   });
+
+  const zoomIn = document.getElementById("zoomInBtn");
+  const zoomOut = document.getElementById("zoomOutBtn");
+  const fitBtn = document.getElementById("fitGraphBtn");
+  if (zoomIn) {
+    zoomIn.addEventListener("click", () => {
+      cy.zoom({ level: cy.zoom() * 1.25, renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 } });
+    });
+  }
+  if (zoomOut) {
+    zoomOut.addEventListener("click", () => {
+      cy.zoom({ level: cy.zoom() * 0.8, renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 } });
+    });
+  }
+  if (fitBtn) {
+    fitBtn.addEventListener("click", () => cy.fit(undefined, 24));
+  }
 }
 
-// Clean co-occurrence: keep only top 2 strongest links per Surah (>= 0.24 Jaccard) to avoid clutter
 function computeSurahCooccurrenceEdges(surahIds) {
   if (!quranData.surah_signatures || surahIds.length < 2) return [];
   const edges = [];
@@ -270,33 +273,6 @@ function renderSurahColumnList(surahIds) {
   });
 }
 
-function applyConcentricLayout() {
-  cy.layout({
-    name: "concentric",
-    animate: true,
-    animationDuration: 300,
-    fit: true,
-    padding: 12,
-    avoidOverlap: true,
-    minNodeSpacing: 8,
-    equidistant: false,
-    concentric: (node) => {
-      const t = node.data("type");
-      if (t === "concept") return 10;
-      if (t === "surah") {
-        // Pack Surahs into 2 tight inner rings based on frequency
-        const label = node.data("label") || "";
-        const match = label.match(/\((\d+)\)/);
-        const count = match ? parseInt(match[1], 10) : 1;
-        return count >= 5 ? 6 : 4;
-      }
-      return 2; // verse nodes on outer ring
-    },
-    levelWidth: () => 2
-  }).run();
-}
-
-
 function runSearch(rawQuery) {
   if (!quranData) return;
   lastQuery = rawQuery;
@@ -344,14 +320,13 @@ function runSearch(rawQuery) {
   surahIds.forEach((sId) => {
     const count = currentMatchesBySurah[sId].length;
     const surahName = quranData.surahs[sId] || `سورة ${sId}`;
-    const labelText = `${surahName} (${count})`;
     elements.push({
       data: {
         id: `s_${sId}`,
-        label: labelText,
+        label: `${surahName}\n(${count})`,
         type: "surah",
         surahId: sId,
-        width: Math.max(105, labelText.length * 10 + 24)
+        size: Math.min(68, 44 + count * 1.8)
       }
     });
     elements.push({
@@ -360,7 +335,7 @@ function runSearch(rawQuery) {
         source: "concept",
         target: `s_${sId}`,
         edgeType: "hierarchy",
-        label: ""
+        label: `${count}`
       }
     });
   });
@@ -371,20 +346,32 @@ function runSearch(rawQuery) {
 
   cy.elements().remove();
   cy.add(elements);
-  applyConcentricLayout();
+  cy.layout({
+    name: "cose",
+    animate: true,
+    fit: true,
+    padding: 30,
+    nodeRepulsion: 7500,
+    idealEdgeLength: 90
+  }).run();
 }
 
 function expandSurahNode(surahId) {
   const occs = currentMatchesBySurah[surahId] || [];
   cy.nodes('[type="verse"]').remove();
 
-  // Highlight active Surah button in right column
   document.querySelectorAll(".surah-row-btn").forEach((b) => {
     b.classList.toggle("active", Number(b.dataset.surahId) === surahId);
   });
 
+  const surahNode = cy.getElementById(`s_${surahId}`);
+  const basePos = surahNode.position();
+
+  // Place verse nodes in a tight local arc around the clicked Surah node
   const newNodes = [];
+  const radius = 85;
   occs.forEach((occ, idx) => {
+    const angle = (2 * Math.PI * idx) / Math.max(occs.length, 1);
     const vNodeId = `v_${surahId}_${occ.v}_${idx}`;
     newNodes.push({
       data: {
@@ -394,6 +381,10 @@ function expandSurahNode(surahId) {
         surahId: surahId,
         verseId: occ.v,
         occ: occ
+      },
+      position: {
+        x: basePos.x + radius * Math.cos(angle),
+        y: basePos.y + radius * Math.sin(angle)
       }
     });
     newNodes.push({
@@ -408,7 +399,12 @@ function expandSurahNode(surahId) {
   });
 
   cy.add(newNodes);
-  applyConcentricLayout();
+  // Smoothly pan/zoom to focus on the expanded Surah and its verses
+  const focusGroup = surahNode.union(cy.nodes('[type="verse"]'));
+  cy.animate({
+    fit: { eles: focusGroup, padding: 80 },
+    duration: 400
+  });
 
   if (occs.length > 0) {
     showVerseContext(surahId, occs[0].v, occs[0]);
