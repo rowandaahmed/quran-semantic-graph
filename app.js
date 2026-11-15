@@ -333,6 +333,19 @@ function initGraph() {
           "font-size": "10px",
           color: "#b45309"
         }
+      },
+      {
+        selector: ".dimmed",
+        style: {
+          opacity: 0.22
+        }
+      },
+      {
+        selector: "node.focused-surah",
+        style: {
+          "border-width": 4,
+          "border-color": "#c59b27"
+        }
       }
     ]
   });
@@ -353,7 +366,10 @@ function initGraph() {
   document.getElementById("zoomOutBtn").addEventListener("click", () => {
     cy.zoom({ level: cy.zoom() * 0.8, renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 } });
   });
-  document.getElementById("fitGraphBtn").addEventListener("click", () => cy.fit(undefined, 24));
+  document.getElementById("fitGraphBtn").addEventListener("click", () => {
+    cy.elements().removeClass("dimmed");
+    cy.fit(undefined, 24);
+  });
 }
 
 function computeSurahCooccurrenceEdges(surahIds) {
@@ -480,6 +496,9 @@ function runSearch(rawQuery) {
   if (!quranData) return;
   const dict = I18N[currentLang];
   lastQuery = rawQuery;
+  window._lastExpandedSurah = null;
+  window._lastExpandedPos = null;
+
   const q = normalizeArabic(rawQuery);
   if (!q) return;
 
@@ -564,34 +583,87 @@ function expandSurahNode(surahId) {
   const dict = I18N[currentLang];
   selectedSurahId = surahId;
   const occs = currentMatchesBySurah[surahId] || [];
+
   cy.nodes('[type="verse"]').remove();
+  cy.elements().removeClass("dimmed focused-surah");
+
+  if (window._lastExpandedSurah && window._lastExpandedPos) {
+    const prevNode = cy.getElementById(`s_${window._lastExpandedSurah}`);
+    if (prevNode.length) {
+      prevNode.position(window._lastExpandedPos);
+    }
+  }
 
   document.querySelectorAll(".surah-row-btn").forEach((b) => {
     b.classList.toggle("active", Number(b.dataset.surahId) === surahId);
   });
 
+  // Group multiple occurrences within the same verse
+  const verseGroups = [];
+  const byVerse = new Map();
+  occs.forEach((occ) => {
+    if (!byVerse.has(occ.v)) {
+      const group = { v: occ.v, items: [] };
+      byVerse.set(occ.v, group);
+      verseGroups.push(group);
+    }
+    byVerse.get(occ.v).items.push(occ);
+  });
+
   const surahNode = cy.getElementById(`s_${surahId}`);
-  const basePos = surahNode.position();
+  if (!surahNode.length) return;
+
+  window._lastExpandedSurah = surahId;
+  window._lastExpandedPos = { ...surahNode.position() };
+
+  // Pull the selected Surah aside to an open area next to the main cluster
+  const mainNodes = cy.nodes('[type="concept"], [type="surah"]').not(surahNode);
+  const bb = mainNodes.boundingBox();
+  const isRtl = currentLang === "ar";
+
+  const sideX = isRtl ? bb.x2 + 160 : bb.x1 - 160;
+  const centerY = (bb.y1 + bb.y2) / 2;
+
+  surahNode.position({ x: sideX, y: centerY });
+  surahNode.addClass("focused-surah");
+
+  mainNodes.not("#concept").addClass("dimmed");
+  cy.edges().not(`#e_c_${surahId}`).addClass("dimmed");
+
+  // Arrange verse sub-nodes in a structured multi-column grid beside the Surah
+  const cols = verseGroups.length > 24 ? 6 : verseGroups.length > 10 ? 4 : 3;
+  const colSpacing = 62;
+  const rowSpacing = 56;
+  const totalRows = Math.ceil(verseGroups.length / cols);
+  const startY = centerY - ((totalRows - 1) * rowSpacing) / 2;
+  const dirSign = isRtl ? 1 : -1;
 
   const newNodes = [];
-  const radius = 85;
-  occs.forEach((occ, idx) => {
-    const angle = (2 * Math.PI * idx) / Math.max(occs.length, 1);
-    const vNodeId = `v_${surahId}_${occ.v}_${idx}`;
+  verseGroups.forEach((group, idx) => {
+    const r = Math.floor(idx / cols);
+    const c = idx % cols;
+    const vNodeId = `v_${surahId}_${group.v}`;
+    const badgeLabel =
+      group.items.length > 1
+        ? `${dict.verseNode(group.v)}\n(×${group.items.length})`
+        : dict.verseNode(group.v);
+
     newNodes.push({
       data: {
         id: vNodeId,
-        label: dict.verseNode(occ.v),
+        label: badgeLabel,
         type: "verse",
         surahId: surahId,
-        verseId: occ.v,
-        occ: occ
+        verseId: group.v,
+        occ: group.items[0],
+        allOccs: group.items
       },
       position: {
-        x: basePos.x + radius * Math.cos(angle),
-        y: basePos.y + radius * Math.sin(angle)
+        x: sideX + dirSign * (110 + c * colSpacing),
+        y: startY + r * rowSpacing
       }
     });
+
     newNodes.push({
       data: {
         id: `e_${surahId}_${vNodeId}`,
@@ -604,21 +676,39 @@ function expandSurahNode(surahId) {
   });
 
   cy.add(newNodes);
-  const focusGroup = surahNode.union(cy.nodes('[type="verse"]'));
+
+  const focusGroup = surahNode
+    .union(cy.nodes('[type="verse"]'))
+    .union(cy.getElementById("concept"));
+
   cy.animate({
-    fit: { eles: focusGroup, padding: 80 },
-    duration: 400
+    fit: { eles: focusGroup, padding: 55 },
+    duration: 420
   });
 
-  if (occs.length > 0) {
-    showVerseContext(surahId, occs[0].v, occs[0]);
+  if (verseGroups.length > 0) {
+    showVerseContext(surahId, verseGroups[0].v, verseGroups[0].items[0], verseGroups);
   }
 }
 
-function showVerseContext(surahId, verseId, occ) {
+function showVerseContext(surahId, verseId, occ, verseGroups = null) {
   const dict = I18N[currentLang];
   selectedSurahId = surahId;
   selectedVerseOcc = occ;
+
+  if (!verseGroups) {
+    const occs = currentMatchesBySurah[surahId] || [];
+    const byVerse = new Map();
+    verseGroups = [];
+    occs.forEach((o) => {
+      if (!byVerse.has(o.v)) {
+        const g = { v: o.v, items: [] };
+        byVerse.set(o.v, g);
+        verseGroups.push(g);
+      }
+      byVerse.get(o.v).items.push(o);
+    });
+  }
 
   const container = document.getElementById("inspectorContent");
   const surahName = getSurahName(surahId);
@@ -626,9 +716,23 @@ function showVerseContext(surahId, verseId, occ) {
   const currText = quranData.verses[`${surahId}:${verseId}`] || "";
   const nextText = quranData.verses[`${surahId}:${verseId + 1}`];
 
-  const highlighted = currText.replace(occ.w, `<span class="highlight">${occ.w}</span>`);
+  const activeGroup = verseGroups.find((g) => g.v === verseId);
+  const wordsToHighlight = activeGroup ? [...new Set(activeGroup.items.map((i) => i.w))] : [occ.w];
+  let highlighted = currText;
+  wordsToHighlight.forEach((w) => {
+    highlighted = highlighted.split(w).join(`<span class="highlight">${w}</span>`);
+  });
 
-  let html = "";
+  let pillsHtml = `<div class="verse-pill-bar">`;
+  verseGroups.forEach((g) => {
+    const activeCls = g.v === verseId ? "active" : "";
+    const mult = g.items.length > 1 ? ` ×${g.items.length}` : "";
+    pillsHtml += `<button class="verse-jump-pill ${activeCls}" data-v="${g.v}">${g.v}${mult}</button>`;
+  });
+  pillsHtml += `</div>`;
+
+  let html = pillsHtml;
+
   if (prevText) {
     html += `
       <div class="verse-card context">
@@ -637,18 +741,26 @@ function showVerseContext(surahId, verseId, occ) {
       </div>`;
   }
 
+  const itemsList = activeGroup ? activeGroup.items : [occ];
+  const metaRowsHtml = itemsList
+    .map(
+      (item) => `
+      <div class="morph-meta">
+        <div><strong>${dict.wordLabel}:</strong> ${item.w} | <strong>${dict.stemLabel}:</strong> ${item.stem} <span class="tag-pill">${item.tag || "—"}</span></div>
+        <div><strong>${dict.roleLabel}:</strong> ${item.role || "—"} | <strong>${dict.posLabel}:</strong> ${item.pos || "—"}</div>
+        <div><strong>${dict.pfnLabel}:</strong> ${item.pfn || "—"} | <strong>${dict.cmLabel}:</strong> ${item.cm || "—"}</div>
+      </div>`
+    )
+    .join("");
+
   html += `
     <div class="verse-card">
       <div class="verse-header">
         <span>${dict.currHeader(surahName, verseId)}</span>
-        <span>${dict.wordLabel}: ${occ.w}</span>
+        <span>${itemsList.length}×</span>
       </div>
       <div class="ayah-text">${highlighted}</div>
-      <div class="morph-meta">
-        <div><strong>${dict.stemLabel}:</strong> ${occ.stem} <span class="tag-pill">${occ.tag || "—"}</span></div>
-        <div><strong>${dict.roleLabel}:</strong> ${occ.role || "—"} | <strong>${dict.posLabel}:</strong> ${occ.pos || "—"}</div>
-        <div><strong>${dict.pfnLabel}:</strong> ${occ.pfn || "—"} | <strong>${dict.cmLabel}:</strong> ${occ.cm || "—"}</div>
-      </div>
+      ${metaRowsHtml}
     </div>`;
 
   if (nextText) {
@@ -660,6 +772,16 @@ function showVerseContext(surahId, verseId, occ) {
   }
 
   container.innerHTML = html;
+
+  container.querySelectorAll(".verse-jump-pill").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const targetV = Number(btn.dataset.v);
+      const targetGroup = verseGroups.find((g) => g.v === targetV);
+      if (targetGroup) {
+        showVerseContext(surahId, targetV, targetGroup.items[0], verseGroups);
+      }
+    });
+  });
 }
 
 document.querySelectorAll(".lang-btn").forEach((btn) => {
