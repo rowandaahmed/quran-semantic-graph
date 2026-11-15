@@ -54,44 +54,62 @@ function populateFilterDropdowns() {
 function initGraph() {
   cy = cytoscape({
     container: document.getElementById("cy"),
+    minZoom: 0.4,
+    maxZoom: 3,
     style: [
       {
         selector: "node",
         style: {
           label: "data(label)",
-          "text-valign": "center",
-          "text-halign": "center",
-          color: "#fff",
-          "font-size": "12px",
+          "font-family": "Amiri, Segoe UI, Tahoma, sans-serif",
+          "font-weight": "bold",
           "text-wrap": "wrap",
-          "text-max-width": "85px"
+          "text-max-width": "120px"
         }
       },
       {
         selector: 'node[type="concept"]',
         style: {
           "background-color": "#c59b27",
-          width: 72,
-          height: 72,
-          "font-size": "16px",
-          "font-weight": "bold"
+          "border-width": 4,
+          "border-color": "#fef08a",
+          width: 110,
+          height: 110,
+          "text-valign": "center",
+          "text-halign": "center",
+          color: "#ffffff",
+          "font-size": "24px"
         }
       },
       {
         selector: 'node[type="surah"]',
         style: {
           "background-color": "#1b4d3e",
-          width: "data(size)",
-          height: "data(size)"
+          "border-width": 2,
+          "border-color": "#ffffff",
+          shape: "round-rectangle",
+          width: "data(width)",
+          height: 44,
+          "text-valign": "center",
+          "text-halign": "center",
+          color: "#ffffff",
+          "font-size": "16px",
+          padding: "8px"
         }
       },
       {
         selector: 'node[type="verse"]',
         style: {
           "background-color": "#2b6cb0",
-          width: 44,
-          height: 44,
-          "font-size": "11px"
+          "border-width": 2,
+          "border-color": "#dbeafe",
+          shape: "round-rectangle",
+          width: 78,
+          height: 36,
+          "text-valign": "center",
+          "text-halign": "center",
+          color: "#ffffff",
+          "font-size": "15px"
         }
       },
       {
@@ -101,20 +119,24 @@ function initGraph() {
           "line-color": "#cbd5e1",
           "curve-style": "straight",
           label: "data(label)",
-          "font-size": "10px",
-          color: "#64748b"
+          "font-size": "13px",
+          "font-weight": "bold",
+          color: "#334155",
+          "text-background-color": "#faf9f5",
+          "text-background-opacity": 0.85,
+          "text-background-padding": "2px"
         }
       },
       {
         selector: 'edge[edgeType="cooccur"]',
         style: {
-          width: 1.8,
+          width: 2,
           "line-color": "#d97706",
           "line-style": "dashed",
           "curve-style": "bezier",
-          opacity: 0.45,
+          opacity: 0.5,
           label: "data(label)",
-          "font-size": "9px",
+          "font-size": "12px",
           color: "#b45309"
         }
       }
@@ -131,6 +153,7 @@ function initGraph() {
     }
   });
 }
+
 
 // Clean co-occurrence: keep only top 2 strongest links per Surah (>= 0.24 Jaccard) to avoid clutter
 function computeSurahCooccurrenceEdges(surahIds) {
@@ -256,7 +279,10 @@ function applyConcentricLayout() {
     name: "concentric",
     animate: true,
     animationDuration: 350,
-    minNodeSpacing: 32,
+    fit: true,
+    padding: 25,
+    avoidOverlap: true,
+    minNodeSpacing: 16,
     concentric: (node) => {
       const t = node.data("type");
       if (t === "concept") return 3;
@@ -314,13 +340,14 @@ function runSearch(rawQuery) {
   surahIds.forEach((sId) => {
     const count = currentMatchesBySurah[sId].length;
     const surahName = quranData.surahs[sId] || `سورة ${sId}`;
+    const labelText = `${surahName} (${count})`;
     elements.push({
       data: {
         id: `s_${sId}`,
-        label: `${surahName}\n(${count})`,
+        label: labelText,
         type: "surah",
         surahId: sId,
-        size: Math.min(60, 38 + count * 1.6)
+        width: Math.max(105, labelText.length * 10 + 24)
       }
     });
     elements.push({
@@ -329,7 +356,7 @@ function runSearch(rawQuery) {
         source: "concept",
         target: `s_${sId}`,
         edgeType: "hierarchy",
-        label: `${count}`
+        label: ""
       }
     });
   });
