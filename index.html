@@ -10,7 +10,7 @@
 <body>
   <header class="topbar">
     <div class="brand">
-      <h1>مستكشف المعاني والأنماط الصرفية</h1>
+      <h1 data-i18n="title">مستكشف المعاني والأنماط الصرفية</h1>
       <span class="badge">MASAQ Corpus Graph</span>
     </div>
 
@@ -18,48 +18,57 @@
       <input
         type="text"
         id="searchInput"
+        data-i18n-placeholder="searchPlaceholder"
         placeholder="ابحث عن جذر أو معنى (مثال: رحم، علم، صبر، نور، قلب)..."
         autocomplete="off"
       />
-      <button id="searchBtn">استكشاف</button>
+      <button id="searchBtn" data-i18n="searchBtn">استكشاف</button>
     </div>
 
-    <div class="quick-tags">
-      <span>أمثلة:</span>
-      <button class="chip" data-q="رحم">رحم</button>
-      <button class="chip" data-q="علم">علم</button>
-      <button class="chip" data-q="صبر">صبر</button>
-      <button class="chip" data-q="نور">نور</button>
-      <button class="chip" data-q="حق">حق</button>
+    <div class="header-controls">
+      <div class="quick-tags">
+        <span data-i18n="examples">أمثلة:</span>
+        <button class="chip" data-q="رحم">رحم</button>
+        <button class="chip" data-q="علم">علم</button>
+        <button class="chip" data-q="صبر">صبر</button>
+        <button class="chip" data-q="نور">نور</button>
+        <button class="chip" data-q="حق">حق</button>
+      </div>
+
+      <div class="lang-switcher" role="group" aria-label="Language Switcher">
+        <button class="lang-btn active" data-lang="ar">العربية</button>
+        <button class="lang-btn" data-lang="tr">Türkçe</button>
+        <button class="lang-btn" data-lang="en">English</button>
+      </div>
     </div>
   </header>
 
   <main class="workspace">
-    <!-- Right Column: Vertical Filter Controls + Matched Surahs Column List -->
+    <!-- Filter Controls + Matched Surahs Column List -->
     <aside class="sidebar-right">
       <div class="panel-section">
-        <h3>تصفية النتائج (Filters)</h3>
+        <h3 data-i18n="filtersTitle">تصفية النتائج (Filters)</h3>
         <div class="filter-column">
           <div class="filter-item">
-            <label for="morphFilter">الوسم الصرفي (Morph_Tag):</label>
+            <label for="morphFilter" data-i18n="morphLabel">الوسم الصرفي (Morph_Tag):</label>
             <select id="morphFilter">
-              <option value="ALL">الكل (All Tags)</option>
+              <option value="ALL" data-i18n="allTags">الكل (All Tags)</option>
             </select>
           </div>
 
           <div class="filter-item">
-            <label for="phrasalFilter">الوظيفة التركيبية (Phrasal_Function):</label>
+            <label for="phrasalFilter" data-i18n="phrasalLabel">الوظيفة التركيبية (Phrasal_Function):</label>
             <select id="phrasalFilter">
-              <option value="ALL">الكل (All Functions)</option>
+              <option value="ALL" data-i18n="allFunctions">الكل (All Functions)</option>
             </select>
           </div>
 
           <label class="toggle-label">
             <input type="checkbox" id="cooccurToggle" />
-            <span>إظهار روابط التقارب المعجمي (أقوى 3 روابط للسورة)</span>
+            <span data-i18n="cooccurLabel">إظهار روابط التقارب المعجمي (أقوى 3 روابط للسورة)</span>
           </label>
 
-          <button id="resetFiltersBtn" class="secondary-btn">إعادة ضبط المرشحات</button>
+          <button id="resetFiltersBtn" class="secondary-btn" data-i18n="resetBtn">إعادة ضبط المرشحات</button>
         </div>
       </div>
 
@@ -67,36 +76,41 @@
 
       <div class="panel-section surah-list-section">
         <div class="list-header">
-          <h3>قائمة السور المطابقة</h3>
+          <h3 data-i18n="surahListTitle">قائمة السور المطابقة</h3>
           <span id="surahCountBadge" class="count-pill">0</span>
         </div>
         <div id="surahColumnList" class="surah-column-list"></div>
       </div>
     </aside>
 
-    <!-- Center Column: Clean Radial Graph -->
+    <!-- Center Column: Graph Canvas -->
     <section class="graph-container">
       <div id="cy"></div>
-      <div class="graph-legend">
-        <span><i class="dot concept"></i> الجذر / المعنى</span>
-        <span><i class="dot surah"></i> السورة</span>
-        <span><i class="dot verse"></i> الآية</span>
-        <span><i class="line cooccur"></i> تقارب معجمي</span>
+      <div class="zoom-controls">
+        <button id="zoomInBtn" data-i18n-title="zoomIn" title="تكبير">+</button>
+        <button id="zoomOutBtn" data-i18n-title="zoomOut" title="تصغير">−</button>
+        <button id="fitGraphBtn" data-i18n-title="fitGraph" title="احتواء الشبكة">⊡</button>
       </div>
-      <div id="statusOverlay" class="status-overlay">جاري تحميل بيانات MASAQ...</div>
+      <div class="graph-legend">
+        <span><i class="dot concept"></i> <span data-i18n="legendConcept">الجذر / المعنى</span></span>
+        <span><i class="dot surah"></i> <span data-i18n="legendSurah">السورة</span></span>
+        <span><i class="dot verse"></i> <span data-i18n="legendVerse">الآية</span></span>
+        <span><i class="line cooccur"></i> <span data-i18n="legendCooccur">تقارب معجمي</span></span>
+      </div>
+      <div id="statusOverlay" class="status-overlay" data-i18n="loading">جاري تحميل بيانات MASAQ...</div>
     </section>
 
-    <!-- Left Column: Corpus Statistics + Verse Context Inspector -->
+    <!-- Corpus Statistics + Verse Context Inspector -->
     <aside class="inspector" id="inspector">
       <div class="stats-panel" id="corpusStatsPanel">
-        <h3>التوزيع الصرفي والنحوي في المدونة</h3>
+        <h3 data-i18n="statsTitle">التوزيع الصرفي والنحوي في المدونة</h3>
         <div id="corpusStatsContent" class="stats-grid"></div>
       </div>
 
       <hr class="divider" />
 
-      <h2>تفاصيل الآيات والسياق</h2>
-      <p class="hint" id="inspectorHint">اختر <strong>سورة</strong> من القائمة اليمنى أو من الشبكة لعرض جميع آياتها وسياقها.</p>
+      <h2 data-i18n="inspectorTitle">تفاصيل الآيات والسياق</h2>
+      <p class="hint" id="inspectorHint" data-i18n="inspectorHint">اختر <strong>سورة</strong> من القائمة أو من الشبكة لعرض جميع آياتها وسياقها.</p>
       <div id="inspectorContent"></div>
     </aside>
   </main>
