@@ -334,7 +334,7 @@ function initGraph() {
           color: "#b45309"
         }
       },
-     {
+      {
         selector: "node.dimmed",
         style: {
           "background-color": "#7c9a8e",
@@ -446,7 +446,7 @@ function updateCorpusStats(occs) {
     if (o.tag) {
       tagCounts[o.tag] = (tagCounts[o.tag] || 0) + 1;
       if (o.tag.startsWith("NOUN") || o.tag === "GERUND") nounCount++;
-      if (o.tag.startsWith("VERB")) verbCount++;
+      if (["PV", "IV", "CV"].includes(o.tag) || o.tag.startsWith("VERB")) verbCount++;
     }
     if (o.pfn) {
       pfnCounts[o.pfn] = (pfnCounts[o.pfn] || 0) + 1;
@@ -606,7 +606,6 @@ function expandSurahNode(surahId) {
     b.classList.toggle("active", Number(b.dataset.surahId) === surahId);
   });
 
-  // Group multiple occurrences within the same verse
   const verseGroups = [];
   const byVerse = new Map();
   occs.forEach((occ) => {
@@ -624,7 +623,6 @@ function expandSurahNode(surahId) {
   window._lastExpandedSurah = surahId;
   window._lastExpandedPos = { ...surahNode.position() };
 
-  // Pull the selected Surah aside to an open area next to the main cluster
   const mainNodes = cy.nodes('[type="concept"], [type="surah"]').not(surahNode);
   const bb = mainNodes.boundingBox();
   const isRtl = currentLang === "ar";
@@ -638,7 +636,6 @@ function expandSurahNode(surahId) {
   mainNodes.not("#concept").addClass("dimmed");
   cy.edges().not(`#e_c_${surahId}`).addClass("dimmed");
 
-  // Arrange verse sub-nodes in a structured multi-column grid beside the Surah
   const cols = verseGroups.length > 24 ? 6 : verseGroups.length > 10 ? 4 : 3;
   const colSpacing = 62;
   const rowSpacing = 56;
@@ -818,6 +815,398 @@ document.getElementById("resetFiltersBtn").addEventListener("click", () => {
   document.getElementById("phrasalFilter").value = "ALL";
   document.getElementById("cooccurToggle").checked = false;
   runSearch(lastQuery);
+});
+
+let fingerprintData = null;
+let currentAppMode = "explorer";
+let currentFpSubMode = "surah";
+let renderedBarsMeta = [];
+let currentCanvasItems = [];
+let currentIsWholeQuran = false;
+let hoverMouseX = null;
+let lockedBarIndex = null;
+
+const CATEGORY_COLORS = {
+  nominal: "#1b4d3e",    // أخضر زمردي
+  verbal: "#2563eb",     // أزرق
+  directive: "#d97706",  // ذهبي
+  warning: "#dc2626"     // أحمر ياقوتي
+};
+
+const CATEGORY_LABELS = {
+  nominal: "ثناء وتقرير (اسمي)",
+  verbal: "حركة وسرد (فعلي)",
+  directive: "دعاء / أمر / تشريع",
+  warning: "نفي / شرط / إنذار"
+};
+
+async function loadFingerprintData() {
+  if (fingerprintData) return fingerprintData;
+  const res = await fetch(`./data/quran_fingerprints.json?v=${Date.now()}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  fingerprintData = await res.json();
+
+  const select = document.getElementById("fpSurahSelect");
+  select.innerHTML = "";
+  for (let i = 1; i <= 114; i++) {
+    const s = fingerprintData.surahs[String(i)];
+    const opt = document.createElement("option");
+    opt.value = i;
+    opt.textContent = `${i}. ${s.name} (${s.num_verses} آية)`;
+    select.appendChild(opt);
+  }
+  select.value = "1";
+  return fingerprintData;
+}
+
+function updateInspectorCard(it, isLocked = false) {
+  if (!it) return;
+  const hint = document.getElementById("inspectorHint");
+  if (hint) hint.style.display = "none";
+  const badge = isLocked
+    ? `<span style="background:#c59b27; color:#102a22; padding:2px 8px; border-radius:6px; font-size:0.75rem; font-weight:700;">مُثبّت بالنقر</span>`
+    : "";
+  document.getElementById("inspectorContent").innerHTML = `
+    <div class="verse-card" style="border-right: 4px solid ${CATEGORY_COLORS[it.category]};">
+      <div class="verse-header" style="display:flex; justify-content:space-between; align-items:center;">
+        <span class="verse-ref">${it.title}</span>
+        ${badge}
+      </div>
+      <div style="font-size:0.82rem; color:#475569; margin:4px 0;">
+        <strong>الطول:</strong> ${it.lengthLabel} | <strong>المحتوى:</strong> ${CATEGORY_LABELS[it.category]}
+      </div>
+      <div class="verse-text" style="margin-top:8px; font-size:1.08rem;">${it.text}</div>
+    </div>
+  `;
+}
+
+function drawBarsOnCanvas(items, isWholeQuran = false) {
+  currentCanvasItems = items;
+  currentIsWholeQuran = isWholeQuran;
+
+  const canvas = document.getElementById("voiceprintCanvas");
+  if (!canvas) return -1;
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const width = Math.max(600, rect.width || 800);
+  const height = Math.max(360, rect.height || 440);
+
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+
+  ctx.fillStyle = "#fdfcfb";
+  ctx.fillRect(0, 0, width, height);
+
+  const midY = height / 2;
+  ctx.strokeStyle = "#e2e8f0";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(28, midY);
+  ctx.lineTo(width - 28, midY);
+  ctx.stroke();
+
+  const count = items.length;
+  const padX = 36;
+  const usableW = width - padX * 2;
+  const baseStep = usableW / Math.max(count, 1);
+  const maxVal = Math.max(...items.map((d) => Number(d.lengthVal) || 1), 1);
+  const maxDensity = Math.max(...items.map((d) => Number(d.densityVal) || 0.001), 0.001);
+  const maxHalfH = height * 0.40;
+
+  const useLens = hoverMouseX !== null && count > 25;
+  const lensRadius = 95;
+  const lensStrength = 3.2;
+
+  const weights = items.map((_, idx) => {
+    if (!useLens) return 1;
+    const baseX = width - padX - (idx + 0.5) * baseStep;
+    const dist = Math.abs(baseX - hoverMouseX);
+    if (dist >= lensRadius) return 1;
+    const factor = 0.5 * (1 + Math.cos((Math.PI * dist) / lensRadius));
+    return 1 + lensStrength * factor;
+  });
+
+  const totalWeight = weights.reduce((a, b) => a + b, 0);
+  const scaleUnit = usableW / Math.max(totalWeight, 1);
+
+  renderedBarsMeta = [];
+  let cursorRight = width - padX;
+  let closestIdx = -1;
+  let minCursorDist = Infinity;
+
+  items.forEach((item, idx) => {
+    const slotW = weights[idx] * scaleUnit;
+    const x = cursorRight - slotW / 2;
+    cursorRight -= slotW;
+
+    if (hoverMouseX !== null) {
+      const d = Math.abs(x - hoverMouseX);
+      if (d < minCursorDist) {
+        minCursorDist = d;
+        closestIdx = idx;
+      }
+    }
+
+    const boost = useLens ? (weights[idx] - 1) / lensStrength : 0;
+    const val = Number(item.lengthVal) || 1;
+    const normLen = Math.pow(val / maxVal, 0.72);
+    const halfH = Math.min(height * 0.46, Math.max(12, normLen * maxHalfH * (1 + 0.16 * boost)));
+
+    const normThick = (Number(item.densityVal) || 0.001) / maxDensity;
+    const baseThick = Math.min(baseStep * 0.72, isWholeQuran ? 4.5 : 14);
+    const lineW = Math.max(1.6, baseThick * (0.35 + 0.65 * normThick)) + boost * 3.2;
+
+    renderedBarsMeta.push({
+      idx,
+      x,
+      halfH,
+      lineW,
+      boost,
+      hitHalfW: Math.max(slotW / 2, 4),
+      item
+    });
+  });
+
+  renderedBarsMeta.forEach((bar) => {
+    const isActive = bar.idx === closestIdx || bar.idx === lockedBarIndex;
+
+    if (isActive) {
+      ctx.strokeStyle = "rgba(197, 155, 39, 0.28)";
+      ctx.lineWidth = bar.lineW + 8;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(bar.x, midY - bar.halfH - 4);
+      ctx.lineTo(bar.x, midY + bar.halfH + 4);
+      ctx.stroke();
+    }
+
+    ctx.strokeStyle = CATEGORY_COLORS[bar.item.category] || "#1b4d3e";
+    ctx.globalAlpha = hoverMouseX !== null && bar.boost < 0.05 && !isActive ? 0.55 : 1.0;
+    ctx.lineWidth = isActive ? bar.lineW + 1.5 : bar.lineW;
+    ctx.lineCap = "round";
+
+    ctx.beginPath();
+    ctx.moveTo(bar.x, midY - bar.halfH);
+    ctx.lineTo(bar.x, midY + bar.halfH);
+    ctx.stroke();
+    ctx.globalAlpha = 1.0;
+  });
+
+  if (useLens) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(148, 163, 184, 0.35)";
+    ctx.setLineDash([4, 4]);
+    ctx.lineWidth = 1;
+    ctx.strokeRect(
+      Math.max(24, hoverMouseX - lensRadius),
+      14,
+      Math.min(width - 48, lensRadius * 2),
+      height - 28
+    );
+    ctx.restore();
+  }
+
+  return closestIdx;
+}
+
+function renderSurahFingerprint(surahId) {
+  if (!fingerprintData) return;
+  const profile = fingerprintData.surahs[String(surahId)];
+  if (!profile) return;
+
+  hoverMouseX = null;
+  lockedBarIndex = null;
+
+  const items = profile.verses.map((v) => ({
+    title: `${profile.name} — الآية ${v.v}`,
+    lengthVal: v.chars || v.words || 1,
+    lengthLabel: `${v.chars || 0} حرفاً (${v.words} كلمات)`,
+    category: v.category || "nominal",
+    densityVal: v.density || 0.05,
+    text: v.text || ""
+  }));
+
+  drawBarsOnCanvas(items, false);
+
+  const stemsBadges = profile.distinctive_stems
+    .map((s) => `<span class="fp-stem-chip">${s.stem} (${s.count})</span>`)
+    .join(" ");
+
+  document.getElementById("fpSummaryMetrics").innerHTML = `
+    <div class="stat-box">
+      <div class="stat-title">عدد خطوط البصمة (الآيات)</div>
+      <div class="stat-val">${profile.num_verses} آية | ${profile.total_words} كلمة</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-title">التوازن الصرفي (اسم / فعل)</div>
+      <div class="stat-val">${Math.round(profile.noun_ratio * 100)}% اسم | ${Math.round(profile.verb_ratio * 100)}% فعل</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-title">أول تحول أسلوبي</div>
+      <div class="stat-val">${profile.shift_verse ? `الآية ${profile.shift_verse}` : "ثبات أسلوبي"}</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-title">أقرب سورة بنيوياً</div>
+      <div class="stat-val">${profile.closest_surah.name} (${Math.round(profile.closest_surah.similarity * 100)}%)</div>
+    </div>
+    <div class="stat-box" style="grid-column: 1 / -1;">
+      <div class="stat-title">الألفاظ الأكثر تفرداً (TF-IDF)</div>
+      <div style="margin-top:4px;">${stemsBadges}</div>
+    </div>
+  `;
+
+  document.getElementById("statusOverlay").textContent =
+    `بصمة ${profile.name} (${profile.num_verses} خطاً) — مرّري الفأرة على أي خط لمعاينة الآية`;
+}
+
+function renderWholeQuranFingerprint() {
+  if (!fingerprintData) return;
+
+  hoverMouseX = null;
+  lockedBarIndex = null;
+
+  const items = [];
+  for (let s = 1; s <= 114; s++) {
+    const prof = fingerprintData.surahs[String(s)];
+    const totalChars = prof.verses.reduce((acc, v) => acc + (v.chars || v.words || 1), 0);
+    const cat = prof.verb_ratio > prof.noun_ratio ? "verbal" : "nominal";
+    items.push({
+      title: `${s}. ${prof.name}`,
+      lengthVal: totalChars,
+      lengthLabel: `${prof.num_verses} آية | ${totalChars} حرفاً`,
+      category: cat,
+      densityVal: prof.distinctive_stems[0]?.score || 0.1,
+      text: `أقرب توأم بنيوي: ${prof.closest_surah.name} (${Math.round(prof.closest_surah.similarity * 100)}%)`
+    });
+  }
+
+  drawBarsOnCanvas(items, true);
+
+  const stats = fingerprintData.macro_stats;
+  document.getElementById("fpSummaryMetrics").innerHTML = `
+    <div class="stat-box">
+      <div class="stat-title">معامل الترابط المتتالي</div>
+      <div class="stat-val">${stats.mean_sequential_similarity}</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-title">الدلالة الإحصائية (p-value)</div>
+      <div class="stat-val">${stats.permutation_p_value} (${stats.trials} تجربة)</div>
+    </div>
+  `;
+
+  document.getElementById("statusOverlay").textContent =
+    `البصمة الكلية للقرآن (114 خطاً) — معامل الترابط المتتالي: ${stats.mean_sequential_similarity} | p-value = ${stats.permutation_p_value}`;
+}
+
+const vpCanvas = document.getElementById("voiceprintCanvas");
+if (vpCanvas) {
+  vpCanvas.addEventListener("mousemove", (e) => {
+    if (!currentCanvasItems.length) return;
+    const rect = vpCanvas.getBoundingClientRect();
+    hoverMouseX = e.clientX - rect.left;
+    const closestIdx = drawBarsOnCanvas(currentCanvasItems, currentIsWholeQuran);
+
+    if (closestIdx >= 0 && renderedBarsMeta[closestIdx]) {
+      vpCanvas.style.cursor = "pointer";
+      if (lockedBarIndex === null) {
+        updateInspectorCard(renderedBarsMeta[closestIdx].item, false);
+      }
+    } else {
+      vpCanvas.style.cursor = "default";
+    }
+  });
+
+  vpCanvas.addEventListener("click", () => {
+    if (hoverMouseX === null || !renderedBarsMeta.length) return;
+    let best = null;
+    let minD = Infinity;
+    renderedBarsMeta.forEach((b) => {
+      const d = Math.abs(b.x - hoverMouseX);
+      if (d < minD) {
+        minD = d;
+        best = b;
+      }
+    });
+    if (best) {
+      lockedBarIndex = lockedBarIndex === best.idx ? null : best.idx;
+      drawBarsOnCanvas(currentCanvasItems, currentIsWholeQuran);
+      updateInspectorCard(best.item, lockedBarIndex !== null);
+    }
+  });
+
+  vpCanvas.addEventListener("mouseleave", () => {
+    hoverMouseX = null;
+    if (currentCanvasItems.length) {
+      drawBarsOnCanvas(currentCanvasItems, currentIsWholeQuran);
+    }
+  });
+}
+
+async function switchAppMode(mode) {
+  currentAppMode = mode;
+  document.querySelectorAll(".mode-tab-btn").forEach((b) => {
+    b.classList.toggle("active", b.dataset.mode === mode);
+  });
+
+  const fpSidebar = document.getElementById("fingerprintSidebar");
+  const explorerGroups = document.querySelectorAll(".explorer-only");
+  const explorerLegend = document.getElementById("explorerLegend");
+  const fpLegend = document.getElementById("fingerprintLegend");
+  const cyDiv = document.getElementById("cy");
+  const zoomCtrls = document.getElementById("explorerZoomControls");
+
+  if (mode === "fingerprint") {
+    explorerGroups.forEach((el) => (el.style.display = "none"));
+    fpSidebar.style.display = "block";
+    if (explorerLegend) explorerLegend.style.display = "none";
+    if (fpLegend) fpLegend.style.display = "flex";
+    if (cyDiv) cyDiv.style.display = "none";
+    if (zoomCtrls) zoomCtrls.style.display = "none";
+    if (vpCanvas) vpCanvas.style.display = "block";
+
+    await loadFingerprintData();
+    if (currentFpSubMode === "surah") {
+      renderSurahFingerprint(Number(document.getElementById("fpSurahSelect").value || 1));
+    } else {
+      renderWholeQuranFingerprint();
+    }
+  } else {
+    fpSidebar.style.display = "none";
+    explorerGroups.forEach((el) => (el.style.display = ""));
+    if (explorerLegend) explorerLegend.style.display = "flex";
+    if (fpLegend) fpLegend.style.display = "none";
+    if (vpCanvas) vpCanvas.style.display = "none";
+    if (cyDiv) cyDiv.style.display = "block";
+    if (zoomCtrls) zoomCtrls.style.display = "flex";
+    cy.resize();
+    runSearch(lastQuery);
+  }
+}
+
+document.querySelectorAll(".mode-tab-btn").forEach((btn) => {
+  btn.addEventListener("click", () => switchAppMode(btn.dataset.mode));
+});
+
+document.getElementById("fpSurahSelect").addEventListener("change", (e) => {
+  renderSurahFingerprint(Number(e.target.value));
+});
+
+document.getElementById("fpSurahModeBtn").addEventListener("click", () => {
+  currentFpSubMode = "surah";
+  document.getElementById("fpSurahModeBtn").classList.add("active");
+  document.getElementById("fpQuranModeBtn").classList.remove("active");
+  document.getElementById("fpSurahSelectorBox").style.display = "block";
+  renderSurahFingerprint(Number(document.getElementById("fpSurahSelect").value || 1));
+});
+
+document.getElementById("fpQuranModeBtn").addEventListener("click", () => {
+  currentFpSubMode = "quran";
+  document.getElementById("fpQuranModeBtn").classList.add("active");
+  document.getElementById("fpSurahModeBtn").classList.remove("active");
+  document.getElementById("fpSurahSelectorBox").style.display = "none";
+  renderWholeQuranFingerprint();
 });
 
 init();

@@ -40,13 +40,18 @@
         <button class="lang-btn" data-lang="tr">Türkçe</button>
         <button class="lang-btn" data-lang="en">English</button>
       </div>
+
+      <div class="mode-tabs">
+        <button class="mode-tab-btn active" data-mode="explorer">المستكشف الدلالي</button>
+        <button class="mode-tab-btn" data-mode="fingerprint">بصمة السورة والقرآن</button>
+      </div>
     </div>
   </header>
 
   <main class="workspace">
-    <!-- Filter Controls + Matched Surahs Column List -->
+    <!-- العمود الأيمن: مرشحات المستكشف + لوحة البصمة -->
     <aside class="sidebar-right">
-      <div class="panel-section">
+      <div class="panel-section explorer-only">
         <h3 data-i18n="filtersTitle">تصفية النتائج (Filters)</h3>
         <div class="filter-column">
           <div class="filter-item">
@@ -72,35 +77,66 @@
         </div>
       </div>
 
-      <hr class="divider" />
+      <hr class="divider explorer-only" />
 
-      <div class="panel-section surah-list-section">
+      <div class="panel-section surah-list-section explorer-only">
         <div class="list-header">
           <h3 data-i18n="surahListTitle">قائمة السور المطابقة</h3>
           <span id="surahCountBadge" class="count-pill">0</span>
         </div>
         <div id="surahColumnList" class="surah-column-list"></div>
       </div>
+
+      <!-- لوحة البصمة البنيوية -->
+      <div id="fingerprintSidebar" class="panel-section fingerprint-panel" style="display: none;">
+        <h3>لوحة البصمة البنيوية</h3>
+        <div class="fp-view-toggle">
+          <button id="fpSurahModeBtn" class="fp-sub-btn active">بصمة سورة فردية</button>
+          <button id="fpQuranModeBtn" class="fp-sub-btn">بصمة القرآن (114)</button>
+        </div>
+
+        <div id="fpSurahSelectorBox" class="filter-item" style="margin-bottom: 12px;">
+          <label for="fpSurahSelect">اختر السورة:</label>
+          <select id="fpSurahSelect"></select>
+        </div>
+
+        <div id="fpSummaryMetrics" class="stats-grid"></div>
+      </div>
     </aside>
 
-    <!-- Center Column: Graph Canvas -->
+    <!-- المنتصف: لوحة الرسم (Cytoscape للمستكشف + Canvas للبصمة الصامتة) -->
     <section class="graph-container">
       <div id="cy"></div>
-      <div class="zoom-controls">
+      <canvas id="voiceprintCanvas" style="display: none; width: 100%; flex: 1;"></canvas>
+
+      <div class="zoom-controls" id="explorerZoomControls">
         <button id="zoomInBtn" data-i18n-title="zoomIn" title="تكبير">+</button>
         <button id="zoomOutBtn" data-i18n-title="zoomOut" title="تصغير">−</button>
         <button id="fitGraphBtn" data-i18n-title="fitGraph" title="احتواء الشبكة">⊡</button>
       </div>
-      <div class="graph-legend">
+
+      <div id="explorerLegend" class="graph-legend">
         <span><i class="dot concept"></i> <span data-i18n="legendConcept">الجذر / المعنى</span></span>
         <span><i class="dot surah"></i> <span data-i18n="legendSurah">السورة</span></span>
         <span><i class="dot verse"></i> <span data-i18n="legendVerse">الآية</span></span>
         <span><i class="line cooccur"></i> <span data-i18n="legendCooccur">تقارب معجمي</span></span>
       </div>
+
+      <!-- مفتاح البصمة البصرية أسفل الرسم -->
+      <div id="fingerprintLegend" class="fp-vertical-legend" style="display: none;">
+        <div class="fp-leg-title">مفتاح قراءة البصمة البصرية (كل خط عمودي يمثل آية مرتبة من اليمين إلى اليسار):</div>
+        <div class="fp-leg-item"><i style="display:inline-block; height:16px; width:3px; background:#1b4d3e;"></i> <span><strong>طول الخط:</strong> يعكس عدد حروف الآية بدقة</span></div>
+        <div class="fp-leg-item"><i style="display:inline-block; height:14px; width:7px; background:#1b4d3e;"></i> <span><strong>سماكة الخط:</strong> تعكس الكثافة المعجمية وتفرّد ألفاظ الآية</span></div>
+        <div class="fp-leg-item"><i class="dot" style="background:#1b4d3e;"></i> <span><strong>الأخضر الزمردي:</strong> آية ثناء وتقرير وحقائق ثابتة (اسمي)</span></div>
+        <div class="fp-leg-item"><i class="dot" style="background:#2563eb;"></i> <span><strong>الأزرق:</strong> آية حركة وفعل وسرد</span></div>
+        <div class="fp-leg-item"><i class="dot" style="background:#d97706;"></i> <span><strong>الذهبي:</strong> آية دعاء أو أمر أو نداء وتشريع</span></div>
+        <div class="fp-leg-item"><i class="dot" style="background:#dc2626;"></i> <span><strong>الأحمر الياقوتي:</strong> آية نفي أو شرط أو إنذار وعاقبة</span></div>
+      </div>
+
       <div id="statusOverlay" class="status-overlay" data-i18n="loading">جاري تحميل بيانات MASAQ...</div>
     </section>
 
-    <!-- Corpus Statistics + Verse Context Inspector -->
+    <!-- العمود الأيسر: الإحصاءات ومعاينة الآية -->
     <aside class="inspector" id="inspector">
       <div class="stats-panel" id="corpusStatsPanel">
         <h3 data-i18n="statsTitle">التوزيع الصرفي والنحوي في المدونة</h3>
